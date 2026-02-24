@@ -1,5 +1,7 @@
 # Image MCP Server
 
+[![CI](https://github.com/justinmstuart/image-mcp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/justinmstuart/image-mcp/actions/workflows/ci.yml)
+
 A Model Context Protocol (MCP) server for searching images using the Unsplash API.
 
 ## Prerequisites
