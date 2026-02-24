@@ -25,6 +25,7 @@ public class McpServerIntegrationTests : IAsyncDisposable
     private readonly CancellationTokenSource _cts = new();
     private Task? _serverTask;
     private McpClient? _client;
+    private ServiceProvider? _serviceProvider;
 
     private async Task<McpClient> SetupAsync(HttpClient httpClient)
     {
@@ -39,8 +40,8 @@ public class McpServerIntegrationTests : IAsyncDisposable
                 opts.ClientId = "test_client_id";
             });
 
-        var sp = services.BuildServiceProvider();
-        var mcpOptions = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
+        _serviceProvider = services.BuildServiceProvider();
+        var mcpOptions = _serviceProvider.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
         var serverTransport = new StreamServerTransport(
             _clientToServer.Reader.AsStream(),
@@ -48,7 +49,7 @@ public class McpServerIntegrationTests : IAsyncDisposable
             "test-session",
             null);
 
-        var server = McpServer.Create(serverTransport, mcpOptions, null, sp);
+        var server = McpServer.Create(serverTransport, mcpOptions, null, _serviceProvider);
         _serverTask = server.RunAsync(_cts.Token);
 
         var clientTransport = new StreamClientTransport(
@@ -120,6 +121,22 @@ public class McpServerIntegrationTests : IAsyncDisposable
         Assert.NotEmpty(result.Content);
     }
 
+    [Fact]
+    public async Task CallSearchImages_ReturnsErrorContent_WhenApiFails_ViaProtocol()
+    {
+        var handler = new FakeHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.Unauthorized));
+        var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://api.unsplash.com/") };
+        var client = await SetupAsync(httpClient);
+
+        var result = await client.CallToolAsync(
+            "search_images",
+            new Dictionary<string, object?> { ["query"] = "nature" });
+
+        Assert.NotNull(result);
+        Assert.NotEmpty(result.Content);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _cts.CancelAsync();
@@ -132,6 +149,9 @@ public class McpServerIntegrationTests : IAsyncDisposable
             try { await _serverTask; }
             catch (OperationCanceledException) { }
         }
+
+        if (_serviceProvider is not null)
+            await _serviceProvider.DisposeAsync();
 
         _cts.Dispose();
     }

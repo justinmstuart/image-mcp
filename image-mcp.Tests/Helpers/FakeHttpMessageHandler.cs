@@ -1,5 +1,3 @@
-using System.Net;
-
 namespace image_mcp.Tests.Helpers;
 
 internal sealed class FakeHttpMessageHandler : HttpMessageHandler
