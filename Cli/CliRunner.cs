@@ -1,11 +1,12 @@
 using System.Text.Json;
 
+using image_mcp.Options;
+using image_mcp.Tools;
+using image_mcp.Utils;
+
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-
-using Options;
-
-using Tools;
 
 namespace image_mcp.Cli;
 
@@ -30,7 +31,7 @@ public static class CliRunner
     /// </returns>
     public static async Task<int> RunAsync(
         string[] args,
-        IServiceProvider services,
+        HostApplicationBuilder builder,
         TextWriter? output = null,
         TextWriter? error = null)
     {
@@ -79,7 +80,13 @@ public static class CliRunner
             await error.WriteLineAsync(CliUtils.GetUsage());
             return 2;
         }
+        
+        // Shared setup used by both CLI and MCP server execution paths.
+        ProgramUtils.ConfigureLogging(builder);
+        ProgramUtils.ConfigureSharedServices(builder);
 
+        var cliApp = builder.Build();
+        var services = cliApp.Services;
         var client = services.GetRequiredService<HttpClient>();
         var options = services.GetRequiredService<IOptions<ImageApiOptions>>();
         var results = (await ImageSearchTools.SearchImages(client, options, query)).ToList();

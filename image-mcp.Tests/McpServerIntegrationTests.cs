@@ -1,9 +1,12 @@
 using System.IO.Pipelines;
 using System.Net;
 
+using image_mcp.Options;
+
 using Xunit;
 
 using image_mcp.Tests.Helpers;
+using image_mcp.Tools;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -11,10 +14,6 @@ using Microsoft.Extensions.Options;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-
-using Options;
-
-using Tools;
 
 namespace image_mcp.Tests;
 

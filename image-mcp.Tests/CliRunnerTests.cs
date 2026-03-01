@@ -1,12 +1,11 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 
 using image_mcp.Cli;
-using image_mcp.Tests.Helpers;
 
-using Microsoft.Extensions.DependencyInjection;
-
-using Options;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 
 using Xunit;
 
@@ -18,23 +17,25 @@ namespace image_mcp.Tests;
 public class CliRunnerTests
 {
     /// <summary>
-    /// Creates a <see cref="ServiceProvider"/> with the required dependencies for testing.
+    /// Creates a <see cref="HostApplicationBuilder"/> with the required dependencies for testing.
     /// </summary>
-    /// <param name="client">The <see cref="HttpClient"/> to use.</param>
+    /// <param name="baseAddress">The base address for the HTTP client.</param>
     /// <param name="clientId">The client ID for the API (default: "test_client_id").</param>
-    /// <returns>A configured <see cref="ServiceProvider"/>.</returns>
-    private static ServiceProvider CreateServiceProvider(HttpClient client, string clientId = "test_client_id")
+    /// <returns>A configured <see cref="HostApplicationBuilder"/>.</returns>
+    private static HostApplicationBuilder CreateBuilder(Uri baseAddress, string clientId = "test_client_id")
     {
-        var services = new ServiceCollection();
-        services.AddSingleton(client);
-        services.AddOptions<ImageApiOptions>()
-            .Configure(options =>
-            {
-                options.BaseUrl = "https://api.unsplash.com/";
-                options.ClientId = clientId;
-            });
+        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+        {
+            ContentRootPath = AppContext.BaseDirectory
+        });
 
-        return services.BuildServiceProvider();
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ImageApi:BaseUrl"] = baseAddress.ToString(),
+            ["ImageApi:ClientId"] = clientId
+        });
+
+        return builder;
     }
 
     /// <summary>
@@ -87,19 +88,13 @@ public class CliRunnerTests
             }
             """;
 
-        var handler = new FakeHttpMessageHandler(_ =>
-            new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(json, Encoding.UTF8, "application/json")
-            });
+        await using var server = new OneShotHttpServer(HttpStatusCode.OK, json, "application/json");
+        var builder = CreateBuilder(server.BaseAddress);
 
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.unsplash.com/") };
-
-        using var serviceProvider = CreateServiceProvider(client);
         using var outputWriter = new StringWriter();
         using var errorWriter = new StringWriter();
 
-        var exitCode = await CliRunner.RunAsync(["search", "nature"], serviceProvider, outputWriter, errorWriter);
+        var exitCode = await CliRunner.RunAsync(["search", "nature"], builder, outputWriter, errorWriter);
 
         Assert.Equal(0, exitCode);
         Assert.Contains("\"description\": \"A test image\"", outputWriter.ToString());
@@ -112,17 +107,11 @@ public class CliRunnerTests
     [Fact]
     public async Task RunAsync_ReturnsTwo_WhenQueryMissing()
     {
-
-        var client = new HttpClient(new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)))
-        {
-            BaseAddress = new Uri("https://api.unsplash.com/")
-        };
-
-        using var serviceProvider = CreateServiceProvider(client);
+        var builder = CreateBuilder(new Uri("http://127.0.0.1/"));
         using var outputWriter = new StringWriter();
         using var errorWriter = new StringWriter();
 
-        var exitCode = await CliRunner.RunAsync(["search"], serviceProvider, outputWriter, errorWriter);
+        var exitCode = await CliRunner.RunAsync(["search"], builder, outputWriter, errorWriter);
 
         Assert.Equal(2, exitCode);
         Assert.Contains("Usage: image-mcp <command> [options]", errorWriter.ToString());
@@ -134,17 +123,11 @@ public class CliRunnerTests
     [Fact]
     public async Task RunAsync_ReturnsZero_AndPrintsHelpShell_ForHelpCommand()
     {
-
-        var client = new HttpClient(new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)))
-        {
-            BaseAddress = new Uri("https://api.unsplash.com/")
-        };
-
-        using var serviceProvider = CreateServiceProvider(client);
+        var builder = CreateBuilder(new Uri("http://127.0.0.1/"));
         using var outputWriter = new StringWriter();
         using var errorWriter = new StringWriter();
 
-        var exitCode = await CliRunner.RunAsync(["--help"], serviceProvider, outputWriter, errorWriter);
+        var exitCode = await CliRunner.RunAsync(["--help"], builder, outputWriter, errorWriter);
 
         Assert.Equal(0, exitCode);
         Assert.Contains("Commands:", outputWriter.ToString());
@@ -158,17 +141,11 @@ public class CliRunnerTests
     [Fact]
     public async Task RunAsync_ReturnsZero_AndPrintsVersion_ForVersionCommand()
     {
-
-        var client = new HttpClient(new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)))
-        {
-            BaseAddress = new Uri("https://api.unsplash.com/")
-        };
-
-        using var serviceProvider = CreateServiceProvider(client);
+        var builder = CreateBuilder(new Uri("http://127.0.0.1/"));
         using var outputWriter = new StringWriter();
         using var errorWriter = new StringWriter();
 
-        var exitCode = await CliRunner.RunAsync(["--version"], serviceProvider, outputWriter, errorWriter);
+        var exitCode = await CliRunner.RunAsync(["--version"], builder, outputWriter, errorWriter);
 
         Assert.Equal(0, exitCode);
         Assert.StartsWith("image-mcp ", outputWriter.ToString().Trim());
@@ -181,19 +158,113 @@ public class CliRunnerTests
     [Fact]
     public async Task RunAsync_ReturnsOne_WhenSearchReturnsError()
     {
+        await using var server = new OneShotHttpServer(HttpStatusCode.Unauthorized, null, "text/plain");
+        var builder = CreateBuilder(server.BaseAddress);
 
-        var handler = new FakeHttpMessageHandler(_ =>
-            new HttpResponseMessage(HttpStatusCode.Unauthorized));
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.unsplash.com/") };
-
-        using var serviceProvider = CreateServiceProvider(client);
         using var outputWriter = new StringWriter();
         using var errorWriter = new StringWriter();
 
-        var exitCode = await CliRunner.RunAsync(["search", "nature"], serviceProvider, outputWriter, errorWriter);
+        var exitCode = await CliRunner.RunAsync(["search", "nature"], builder, outputWriter, errorWriter);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("Error:", outputWriter.ToString());
         Assert.Contains("Error:", errorWriter.ToString());
     }
+
+    private sealed class OneShotHttpServer : IAsyncDisposable
+    {
+        private readonly TcpListener _listener;
+        private readonly Task _serveTask;
+        private readonly byte[] _responseBytes;
+
+        public OneShotHttpServer(HttpStatusCode statusCode, string? body, string contentType)
+        {
+            _listener = new TcpListener(IPAddress.Loopback, 0);
+            _listener.Start();
+
+            BaseAddress = new Uri($"http://127.0.0.1:{((IPEndPoint)_listener.LocalEndpoint).Port}/");
+
+            var bodyBytes = body is null ? Array.Empty<byte>() : Encoding.UTF8.GetBytes(body);
+            var header = $"HTTP/1.1 {(int)statusCode} {statusCode}\r\n" +
+                         $"Content-Type: {contentType}\r\n" +
+                         $"Content-Length: {bodyBytes.Length}\r\n" +
+                         "Connection: close\r\n\r\n";
+
+            _responseBytes = Encoding.ASCII.GetBytes(header).Concat(bodyBytes).ToArray();
+            _serveTask = Task.Run(ServeOnceAsync);
+        }
+
+        public Uri BaseAddress { get; }
+
+        private async Task ServeOnceAsync()
+        {
+            try
+            {
+                using var client = await _listener.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+
+                // Read until end of headers to keep the client happy.
+                var buffer = new byte[1024];
+                var headerEnd = new byte[] { (byte)'\r', (byte)'\n', (byte)'\r', (byte)'\n' };
+                var total = 0;
+
+                while (true)
+                {
+                    var read = await stream.ReadAsync(buffer, 0, buffer.Length);
+                    if (read <= 0)
+                    {
+                        break;
+                    }
+
+                    total += read;
+                    if (total >= 4 && ContainsHeaderTerminator(buffer, read, headerEnd))
+                    {
+                        break;
+                    }
+                }
+
+                await stream.WriteAsync(_responseBytes, 0, _responseBytes.Length);
+            }
+            catch (ObjectDisposedException)
+            {
+                // Listener was stopped during teardown.
+            }
+        }
+
+        private static bool ContainsHeaderTerminator(byte[] buffer, int read, byte[] terminator)
+        {
+            for (var i = 0; i <= read - terminator.Length; i++)
+            {
+                var match = true;
+                for (var j = 0; j < terminator.Length; j++)
+                {
+                    if (buffer[i + j] != terminator[j])
+                    {
+                        match = false;
+                        break;
+                    }
+                }
+
+                if (match)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            _listener.Stop();
+            try
+            {
+                await _serveTask;
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
+    }
 }
+

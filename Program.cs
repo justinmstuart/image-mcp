@@ -1,32 +1,25 @@
-﻿using System.Net.Http.Headers;
-
-using image_mcp.Cli;
+﻿using image_mcp.Cli;
+using image_mcp.Utils;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-
-using Options;
 
 // Determine startup mode: CLI when arguments are provided, otherwise MCP server mode.
-var isCliMode = args.Length > 0;
 
 var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
 {
     ContentRootPath = AppContext.BaseDirectory
 });
 
-// Shared setup used by both CLI and MCP server execution paths.
-ConfigureLogging(builder);
-ConfigureSharedServices(builder);
-
-if (isCliMode)
+if (CliUtils.IsCliMode(args))
 {
-    using var cliApp = builder.Build();
-    var exitCode = await CliRunner.RunAsync(args, cliApp.Services);
+    var exitCode = await CliRunner.RunAsync(args,builder);
     return exitCode;
 }
+
+// Shared setup used by both CLI and MCP server execution paths.
+ProgramUtils.ConfigureLogging(builder);
+ProgramUtils.ConfigureSharedServices(builder);
 
 builder.Services.AddMcpServer()
     .WithStdioServerTransport()
@@ -36,38 +29,3 @@ var mcpApp = builder.Build();
 
 await mcpApp.RunAsync();
 return 0;
-
-/// <summary>
-/// Configures application logging for stdio-safe operation.
-/// </summary>
-/// <param name="builder">The host builder used to configure logging providers.</param>
-static void ConfigureLogging(HostApplicationBuilder builder)
-{
-    // Disable console logging to prevent interference with MCP stdio protocol
-    // But keep logging to stderr for debugging
-    builder.Logging.ClearProviders();
-    builder.Logging.AddConsole(options =>
-    {
-        options.LogToStandardErrorThreshold = LogLevel.Trace;
-    });
-}
-
-/// <summary>
-/// Registers shared services used by both CLI and MCP server modes.
-/// </summary>
-/// <param name="builder">The host builder used to configure dependency injection services.</param>
-static void ConfigureSharedServices(HostApplicationBuilder builder)
-{
-    builder.Services.AddOptions<ImageApiOptions>()
-        .Bind(builder.Configuration.GetSection("ImageApi"))
-        .ValidateDataAnnotations()
-        .ValidateOnStart();
-
-    builder.Services.AddSingleton<HttpClient>(sp =>
-    {
-        var options = sp.GetRequiredService<IOptions<ImageApiOptions>>().Value;
-        var client = new HttpClient { BaseAddress = new Uri(options.BaseUrl) };
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("image-search", "1.0"));
-        return client;
-    });
-}

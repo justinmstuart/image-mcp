@@ -1,17 +1,15 @@
-using Extensions;
+using System.ComponentModel;
+using System.Text.Json;
+
+using image_mcp.Extensions;
+using image_mcp.Models;
+using image_mcp.Options;
 
 using Microsoft.Extensions.Options;
 
 using ModelContextProtocol.Server;
 
-using Options;
-
-using System.ComponentModel;
-using System.Text.Json;
-
-using image_mcp.Models;
-
-namespace Tools;
+namespace image_mcp.Tools;
 
 
 /// <summary>

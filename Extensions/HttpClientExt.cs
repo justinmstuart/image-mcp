@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace Extensions;
+namespace image_mcp.Extensions;
 
 /// <summary>
 /// Provides extension methods for <see cref="HttpClient"/> to simplify common operations.

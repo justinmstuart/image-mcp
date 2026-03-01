@@ -8,6 +8,8 @@ namespace image_mcp.Cli;
 /// </summary>
 public static class CliUtils
 {
+    public static readonly Func<string[], bool> IsCliMode = args => args.Length > 0;
+    
     /// <summary>
     /// Determines if the CLI was invoked with any arguments.
     /// </summary>

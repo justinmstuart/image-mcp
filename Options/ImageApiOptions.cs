@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Options;
+namespace image_mcp.Options;
 
 /// <summary>
 /// Represents configuration options for the image search API.
