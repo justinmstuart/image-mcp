@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Reflection;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -10,13 +9,25 @@ using Tools;
 
 namespace image_mcp.Cli;
 
+/// <summary>
+/// Provides the main entry point for running CLI commands for the image-mcp application.
+/// </summary>
 public static class CliRunner
 {
-    public static bool IsCliInvocation(string[] args)
-    {
-        return args.Length > 0;
-    }
-
+    /// <summary>
+    /// Executes the CLI command based on the provided arguments.
+    /// Handles help, version, and search commands, and outputs results in JSON format.
+    /// </summary>
+    /// <param name="args">The command-line arguments.</param>
+    /// <param name="services">The service provider for dependency injection.</param>
+    /// <param name="output">The output writer (defaults to Console.Out).</param>
+    /// <param name="error">The error writer (defaults to Console.Error).</param>
+    /// <returns>
+    /// An integer exit code:
+    /// 0 for success,
+    /// 1 for partial failure (e.g., search errors),
+    /// 2 for usage or argument errors.
+    /// </returns>
     public static async Task<int> RunAsync(
         string[] args,
         IServiceProvider services,
@@ -26,42 +37,38 @@ public static class CliRunner
         output ??= Console.Out;
         error ??= Console.Error;
 
-        if (!IsCliInvocation(args))
+        if (!CliUtils.IsCliInvocation(args))
         {
             await error.WriteLineAsync("No command provided.");
-            await error.WriteLineAsync(GetUsage());
+            await error.WriteLineAsync(CliUtils.GetUsage());
             return 2;
         }
 
         var command = args[0];
 
-        if (string.Equals(command, "--help", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(command, "-h", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(command, "help", StringComparison.OrdinalIgnoreCase))
+        if (CliUtils.IsHelpCommand(args))
         {
-            await output.WriteLineAsync(GetHelpShell());
+            await output.WriteLineAsync(CliUtils.GetHelpShell());
             return 0;
         }
 
-        if (string.Equals(command, "--version", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(command, "-v", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(command, "version", StringComparison.OrdinalIgnoreCase))
+        if (CliUtils.IsVersionCommand(args))
         {
-            await output.WriteLineAsync(GetVersionText());
+            await output.WriteLineAsync(CliUtils.GetVersionText());
             return 0;
         }
 
-        if (!string.Equals(command, "search", StringComparison.OrdinalIgnoreCase))
+        if (!CliUtils.IsSearchCommand(args))
         {
             await error.WriteLineAsync("Unknown command.");
-            await error.WriteLineAsync(GetUsage());
+            await error.WriteLineAsync(CliUtils.GetUsage());
             return 2;
         }
 
         if (args.Length < 2)
         {
             await error.WriteLineAsync("Missing query.");
-            await error.WriteLineAsync(GetUsage());
+            await error.WriteLineAsync(CliUtils.GetUsage());
             return 2;
         }
 
@@ -69,7 +76,7 @@ public static class CliRunner
         if (string.IsNullOrWhiteSpace(query))
         {
             await error.WriteLineAsync("Query cannot be empty.");
-            await error.WriteLineAsync(GetUsage());
+            await error.WriteLineAsync(CliUtils.GetUsage());
             return 2;
         }
 
@@ -93,32 +100,5 @@ public static class CliRunner
         }
 
         return 0;
-    }
-
-    private static string GetUsage()
-    {
-        return "Usage: image-mcp <command> [options]";
-    }
-
-    private static string GetHelpShell()
-    {
-        return """
-Usage: image-mcp <command> [options]
-
-Commands:
-  search <query>   Search images and output JSON.
-  --version        Show CLI version.
-  --help           Show this help text.
-
-More commands coming soon.
-""";
-    }
-
-    private static string GetVersionText()
-    {
-        var assembly = typeof(CliRunner).Assembly;
-        var informationalVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-        var normalizedVersion = informationalVersion?.Split('+')[0] ?? assembly.GetName().Version?.ToString() ?? "unknown";
-        return $"image-mcp {normalizedVersion}";
     }
 }
