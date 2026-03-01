@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 
 using Options;
 
+// Determine startup mode: CLI when arguments are provided, otherwise MCP server mode.
 var isCliMode = args.Length > 0;
 
 var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
@@ -16,6 +17,7 @@ var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
     ContentRootPath = AppContext.BaseDirectory
 });
 
+// Shared setup used by both CLI and MCP server execution paths.
 ConfigureLogging(builder);
 ConfigureSharedServices(builder);
 
@@ -35,6 +37,10 @@ var mcpApp = builder.Build();
 await mcpApp.RunAsync();
 return 0;
 
+/// <summary>
+/// Configures application logging for stdio-safe operation.
+/// </summary>
+/// <param name="builder">The host builder used to configure logging providers.</param>
 static void ConfigureLogging(HostApplicationBuilder builder)
 {
     // Disable console logging to prevent interference with MCP stdio protocol
@@ -46,6 +52,10 @@ static void ConfigureLogging(HostApplicationBuilder builder)
     });
 }
 
+/// <summary>
+/// Registers shared services used by both CLI and MCP server modes.
+/// </summary>
+/// <param name="builder">The host builder used to configure dependency injection services.</param>
 static void ConfigureSharedServices(HostApplicationBuilder builder)
 {
     builder.Services.AddOptions<ImageApiOptions>()

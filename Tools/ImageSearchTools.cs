@@ -14,9 +14,22 @@ using image_mcp.Models;
 namespace Tools;
 
 
+/// <summary>
+/// Provides MCP tools for searching images from the configured image API.
+/// </summary>
 [McpServerToolType]
 public static class ImageSearchTools
 {
+    /// <summary>
+    /// Searches for images matching the provided query and returns normalized image results.
+    /// </summary>
+    /// <param name="client">The HTTP client used to call the upstream image API.</param>
+    /// <param name="options">Configured image API options, including client credentials.</param>
+    /// <param name="query">The user-provided search query.</param>
+    /// <returns>
+    /// A sequence of image results containing URLs and descriptions. If an error occurs,
+    /// a single result with the <c>Error</c> field populated is returned.
+    /// </returns>
     [McpServerTool, Description("Search for images based on a query string and returns an array of image results.")]
     public static async Task<IEnumerable<ImageResult>> SearchImages(
         HttpClient client,
