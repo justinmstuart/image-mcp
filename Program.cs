@@ -1,43 +1,31 @@
-﻿using System.Net.Http.Headers;
+﻿using image_mcp.Cli;
+using image_mcp.Utils;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
-using Options;
+// Determine startup mode: CLI when arguments are provided, otherwise MCP server mode.
 
 var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
 {
     ContentRootPath = AppContext.BaseDirectory
 });
 
-// Disable console logging to prevent interference with MCP stdio protocol
-// But keep logging to stderr for debugging
-builder.Logging.ClearProviders();
-builder.Logging.AddConsole(options =>
+if (CliUtils.IsCliMode(args))
 {
-    options.LogToStandardErrorThreshold = LogLevel.Trace;
-});
+    var exitCode = await CliRunner.RunAsync(args,builder);
+    return exitCode;
+}
 
-// Configure ImageApiOptions with validation
-builder.Services.AddOptions<ImageApiOptions>()
-    .Bind(builder.Configuration.GetSection("ImageApi"))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
+// Shared setup used by both CLI and MCP server execution paths.
+ProgramUtils.ConfigureLogging(builder);
+ProgramUtils.ConfigureSharedServices(builder);
 
 builder.Services.AddMcpServer()
     .WithStdioServerTransport()
     .WithToolsFromAssembly();
 
-builder.Services.AddSingleton<HttpClient>(sp =>
-{
-    var options = sp.GetRequiredService<IOptions<ImageApiOptions>>().Value;
-    var client = new HttpClient() { BaseAddress = new Uri(options.BaseUrl) };
-    client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("image-search", "1.0"));
-    return client;
-});
+var mcpApp = builder.Build();
 
-var app = builder.Build();
-
-await app.RunAsync();
+await mcpApp.RunAsync();
+return 0;

@@ -1,14 +1,12 @@
 using System.Net;
 
+using image_mcp.Options;
 using image_mcp.Tests.Helpers;
+using image_mcp.Tools;
 
 using Xunit;
 
 using Microsoft.Extensions.Options;
-
-using Options;
-
-using Tools;
 
 namespace image_mcp.Tests;
 

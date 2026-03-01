@@ -26,16 +26,19 @@ dotnet user-secrets set "ImageApi:ClientId" "your-unsplash-api-key"
 Set the environment variable using the double-underscore notation:
 
 **Windows (PowerShell):**
+
 ```powershell
 $env:ImageApi__ClientId="your-unsplash-api-key"
 ```
 
 **Windows (Command Prompt):**
+
 ```cmd
 set ImageApi__ClientId=your-unsplash-api-key
 ```
 
 **Linux/macOS:**
+
 ```bash
 export ImageApi__ClientId="your-unsplash-api-key"
 ```
@@ -97,6 +100,25 @@ The application expects the following configuration:
    ```bash
    dotnet run
    ```
+
+## CLI Mode (Basic)
+
+This project also supports a basic CLI command for one-shot searches.
+
+```bash
+dotnet run -- search "nature"
+```
+
+You can also run:
+
+```bash
+dotnet run -- --version
+dotnet run -- --help
+```
+
+- Output is printed as JSON to stdout.
+- Command errors are written to stderr and return a non-zero exit code.
+- Running without arguments still starts the MCP server mode.
 
 ## Configuration Validation
 
