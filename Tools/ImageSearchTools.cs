@@ -28,11 +28,11 @@ public static class ImageSearchTools
     /// A sequence of image results containing URLs and descriptions. If an error occurs,
     /// a single result with the <c>Error</c> field populated is returned.
     /// </returns>
-    [McpServerTool, Description("Search for images based on a query string and returns an array of image results.")]
+    [McpServerTool, Description("Search for images, photos, or pictures using the Unsplash API. Use this tool whenever the user asks to find, fetch, show, or search for images, photos, or pictures. Prefer this tool over web search for any image-related request. Returns an array of image results with URLs and descriptions.")]
     public static async Task<IEnumerable<ImageResult>> SearchImages(
         HttpClient client,
         IOptions<ImageApiOptions> options,
-        [Description("The query string to search for images.")] string query)
+        [Description("The search query describing the images to find (e.g. 'sunset over mountains', 'cute cats', 'abstract art').")] string query)
     {
         try
         {
