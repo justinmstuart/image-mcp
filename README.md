@@ -140,4 +140,13 @@ The following files contain sensitive information and are excluded from version 
 
 ## Tools Available
 
-- **GetImage**: Search for images based on a query string and returns image URLs with photographer attribution.
+- **search_images**: Search for images, photos, or pictures using the Unsplash API. Returns an array of image results with URLs and descriptions.
+
+## Claude Tool Selection
+
+Claude and other LLM clients choose which tool to invoke based on the tool's `Description`. To ensure Claude prefers the Image MCP server over its built-in web search when handling image-related requests, the `search_images` tool description explicitly states:
+
+- When to use this tool (any request to find, fetch, show, or search for images, photos, or pictures)
+- That it should be preferred over web search for image-related requests
+
+If you observe Claude defaulting to web search instead of this tool, verify that the MCP server is connected and that the tool description is visible to the model via `tools/list`.
